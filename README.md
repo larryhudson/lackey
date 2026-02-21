@@ -74,7 +74,7 @@ Cloud infrastructure is provisioned externally (no Terraform/CDK in this repo). 
   - **Metadata**: read (get default branch)
 - **Anthropic API key** stored in Secrets Manager
 
-Populate the `LACKEY_*` env vars (see [Configuration](#cloud-backend-environment-host-side-for---cloud-mode) below) in a `.env` file — the CLI loads it automatically via `python-dotenv`.
+Populate the `LACKEY_*` env vars (see [Configuration](#cloud-backend-environment-host-side-for---cloud-mode) below) in a `.env` file — the CLI loads it automatically via `python-dotenv`. See the [Cloud Deployment Guide](DEPLOYMENT_GUIDE.md) for step-by-step setup instructions.
 
 ## Project structure
 
