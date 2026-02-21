@@ -64,11 +64,13 @@ timeout "${TIMEOUT}" python -m lackey || exit_code=$?
 # ── Cloud mode: upload artifacts ──────────────────────────────────────────
 
 if [ ! -d /repo ]; then
-    # Cloud mode — push branch and upload artifacts
-    # TODO: Implement when CloudBackend is built
-    #   - git push origin HEAD
-    #   - aws s3 cp /output/ "s3://${ARTIFACT_BUCKET}/${RUN_ID}/" --recursive
-    echo "Cloud mode artifact upload: not yet implemented"
+    echo "Cloud mode: pushing branch to origin"
+    git push origin HEAD
+
+    if [ -n "${ARTIFACT_BUCKET:-}" ]; then
+        echo "Cloud mode: uploading artifacts to s3://${ARTIFACT_BUCKET}/${RUN_ID}/"
+        python -m lackey.cloud.upload
+    fi
 fi
 
 # ── Done ──────────────────────────────────────────────────────────────────
