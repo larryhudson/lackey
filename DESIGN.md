@@ -19,7 +19,7 @@ Stripe's Minions work because of several reinforcing architectural decisions: is
 The system has four layers:
 
 - **run.py** — the host-side orchestrator with pluggable runtime backends (local Docker or cloud ECS/Fargate)
-- **Dockerfile + entrypoint.sh** — the isolated environment where minions execute (same image for both modes)
+- **Docker images** — a base image (`minion-base`) with the minion infrastructure, plus per-project images that add project-specific tooling
 - **minion.py** — the blueprint orchestrator that interleaves deterministic and agentic steps
 - **toolshed.py** — a centralized MCP tool server with curated access profiles
 
@@ -291,26 +291,61 @@ Agents do not know which runtime backend is in use. They interact with the repo 
 
 ## 8. Container Isolation
 
-### 8.1 Two-Layer Design
+### 8.1 Image Layers
 
-The container image is the same for local and cloud. What changes is how the repo, artifacts, and toolshed are wired in.
+The container image is built in two layers: a base image with minion infrastructure, and a project image that adds project-specific tooling.
+
+**Base image (`minion-base`)** — maintained in this repo, rebuilt when minion tooling changes:
+
+| Contents | Examples |
+|---|---|
+| Minion infrastructure | minion.py, toolshed.py, entrypoint.sh |
+| Agent framework | Pydantic AI, FastMCP |
+| Cloud tools | AWS CLI, boto3, git |
+| Common utilities | curl, jq |
+
+**Project image** — defined by a `Dockerfile.minion` in each target repo, rebuilt when project tooling or dependencies change:
+
+```dockerfile
+FROM minion-base:latest
+
+# Project-specific tooling
+RUN apt-get install -y nodejs npm chromium
+RUN pip install ruff pytest
+
+# Project dependencies (baked in for fast startup)
+COPY requirements.txt /deps/
+RUN pip install -r /deps/requirements.txt
+
+COPY package.json package-lock.json /deps/
+RUN cd /deps && npm ci
+```
+
+The `Dockerfile.minion` lives in the target repo alongside the application code, so it evolves with the project. CI builds and pushes the project image to ECR when the Dockerfile or dependency files change — not on every minion run.
+
+This separation means:
+- **Minion upgrades** don't require rebuilding every project image (unless the base interface changes)
+- **Dependency changes** in a project trigger a project image rebuild, but don't affect other projects
+- **Startup is fast** because dependencies are baked into the image, not installed at container start
+
+### 8.2 Container Layout
+
+What changes between local and cloud mode is how the repo, artifacts, and toolshed are wired in.
 
 **Local mode:**
 
-| Layer | Contains | Rebuilt When |
+| Mount | Contents | Source |
 |---|---|---|
-| Docker image | Python, pip deps, ruff, pytest, minion.py, toolshed.py | Tooling or deps change |
-| Container `/repo` | Target repo, bind-mounted read-only from host | Never — always current |
-| Container `/work` | Writable clone of `/repo` (tmpfs, sized) | Every run |
-| Container `/output` | Artifacts, bind-mounted to host | Every run |
+| `/repo` (read-only) | Target repo | Bind-mounted from host |
+| `/work` (writable) | Working clone of `/repo` | tmpfs, sized |
+| `/output` (writable) | Artifacts | Bind-mounted to host |
 
 **Cloud mode:**
 
-| Layer | Contains | Rebuilt When |
+| Mount | Contents | Source |
 |---|---|---|
-| ECR image | Same image as local | Pushed by CI on merge |
-| Container `/work` | Writable clone from GitHub (no `/repo` mount) | Every run (cloned at startup) |
-| Container `/output` | Artifacts, uploaded to S3 at end of run | Every run |
+| `/work` (writable) | Working clone from GitHub | Cloned at startup |
+| `/output` (writable) | Artifacts | Uploaded to S3 at end of run |
 
 In cloud mode there is no `/repo` bind mount. The entrypoint detects this and clones from the remote directly (the container has network access and git credentials):
 
@@ -324,7 +359,7 @@ else
 fi
 ```
 
-### 8.2 Container Hardening
+### 8.3 Container Hardening
 
 #### Local
 
@@ -363,7 +398,7 @@ Cloud mode trades `--network none` for restricted security group egress. The con
 
 The toolshed remains the capability boundary for the agent's *own* interactions with external services during agentic steps. But network isolation is not the enforcement mechanism — tool availability is. The agent can only use the MCP tools it's given.
 
-### 8.3 Branch Output
+### 8.4 Branch Output
 
 **Local mode:** The container pushes to a host-mounted bare git remote, creating a proper branch.
 
@@ -383,7 +418,7 @@ The toolshed remains the capability boundary for the agent's *own* interactions 
 - Branch naming convention (`minion/{run-id}/*`) enforced by the push script
 - Token expires after the run, limiting the window for misuse
 
-### 8.4 Hygiene Checks
+### 8.5 Hygiene Checks
 
 Before commit (step 9), regardless of runtime mode:
 
@@ -397,13 +432,17 @@ This section describes the AWS resources required for cloud mode.
 
 ### 9.1 ECR (Elastic Container Registry)
 
-The same Docker image used locally is pushed to ECR. CI pushes a new image on merge to main. The image tag includes a content hash for reproducibility.
+Both images are pushed to ECR:
+- `minion-base` — rebuilt when minion infrastructure changes
+- `minion-{project}` — rebuilt when a project's `Dockerfile.minion` or dependency files change
+
+CI handles the builds. The project image tag includes a content hash for reproducibility.
 
 ### 9.2 ECS / Fargate
 
 Each minion run is a single ECS Fargate task with one container. The task definition is a template that specifies:
 
-- Which image to pull (from ECR)
+- Which project image to pull (from ECR)
 - How much CPU and memory (e.g., 1 vCPU, 2 GB)
 - Secrets to inject from Secrets Manager (GitHub token, Anthropic API key)
 - Security group (network egress rules)
@@ -610,7 +649,7 @@ These are intentionally deferred, not forgotten. They can be added without chang
 | Container isolation as primary safety | Simple, strong, well-understood | No defense in depth inside the container |
 | Full test suite (no testmon) | Simple, no cache management | Slower for large test suites |
 | Trust the model | Adapts to frontier model improvements, simpler system | Relies on model quality for discipline |
-| Same image for local and cloud | Identical behavior in both modes, one build pipeline | Image includes deps for both modes (slightly larger) |
+| Base + project image layers | Minion upgrades don't rebuild project images, project deps are baked in for fast startup | Requires a `Dockerfile.minion` per project, CI pipeline per project image |
 | Clone at startup (cloud) | Always latest code, no pre-warming infrastructure | 10-60s startup latency for large repos |
 | CLI polling (cloud orchestrator) | Simple, no extra AWS services | CLI must stay alive; interrupted polling loses visibility (not data) |
 | Network access in cloud mode (vs. `--network none` local) | Container can clone repos, push branches, run apps that need network, call LLM directly | Wider attack surface than local mode's zero-network model |
