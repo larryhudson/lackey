@@ -9,7 +9,7 @@ from pathlib import Path
 from pydantic_ai import Agent
 
 from lackey.agents._deps import AgentDeps, ToolLog, get_model
-from lackey.agents._tools import list_dir, read_file, search_codebase
+from lackey.agents._tools import bash, read_file
 from lackey.models import ScopeResult
 
 log = logging.getLogger("lackey.agents.scoper")
@@ -21,12 +21,12 @@ the minimal set of files needed to complete a task.
 You are READ-ONLY. You MUST NOT modify any files.
 
 Use the provided tools to explore the codebase:
-- list_dir: List directory contents to understand the project structure.
+- bash: Run shell commands (ls, find, grep, rg, etc.) to explore the project
+  structure and search for patterns.
 - read_file: Read file contents to understand code.
-- search_codebase: Search for patterns across the codebase.
 
-Start by listing the top-level directory to understand the project structure,
-then explore relevant areas based on the task.
+Start by listing the top-level directory (e.g. `ls`) to understand the project
+structure, then explore relevant areas based on the task.
 
 Your output must be a structured ScopeResult with:
 - summary: A brief description of what needs to change and why.
@@ -44,7 +44,7 @@ _scoper_agent = Agent(
     output_type=ScopeResult,
     instructions=SCOPER_INSTRUCTIONS,
     deps_type=AgentDeps,
-    tools=[read_file, list_dir, search_codebase],
+    tools=[read_file, bash],
     retries=5,
     defer_model_check=True,
 )

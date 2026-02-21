@@ -73,78 +73,6 @@ async def read_file(ctx: RunContext[AgentDeps], path: str) -> str:
     return content
 
 
-async def list_dir(ctx: RunContext[AgentDeps], path: str = ".") -> str:
-    """List contents of a directory.
-
-    Args:
-        ctx: Agent run context.
-        path: Relative path to the directory from the working directory.
-    """
-    t0 = time.monotonic()
-    log.debug("list_dir: %s", path)
-    resolved = _resolve_path(ctx.deps.work_dir, path)
-    if not resolved.is_dir():
-        raise ModelRetry(f"Not a directory: {path}")
-
-    entries = sorted(resolved.iterdir())
-    lines = []
-    for entry in entries:
-        if entry.name == ".git":
-            continue
-        suffix = "/" if entry.is_dir() else ""
-        lines.append(f"{entry.name}{suffix}")
-
-    if not lines:
-        _audit(ctx, "list_dir", {"path": path}, "empty", t0)
-        return "Empty directory."
-    _audit(ctx, "list_dir", {"path": path}, f"{len(lines)} entries", t0)
-    return "\n".join(lines)
-
-
-async def search_codebase(ctx: RunContext[AgentDeps], pattern: str, glob: str = "") -> str:
-    """Search the codebase using ripgrep. Returns up to 50 matching lines.
-
-    Args:
-        ctx: Agent run context.
-        pattern: Regex pattern to search for.
-        glob: Optional glob filter for file names (e.g. '*.py').
-    """
-    t0 = time.monotonic()
-    log.debug("search_codebase: pattern=%r glob=%r", pattern, glob)
-    args: dict[str, str] = {"pattern": pattern}
-    if glob:
-        args["glob"] = glob
-    cmd = ["rg", "--no-heading", "--line-number", "--max-count=5"]
-    if glob:
-        cmd.extend(["--glob", glob])
-    cmd.extend([pattern, str(ctx.deps.work_dir.resolve())])
-
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        raw, _ = await asyncio.wait_for(proc.communicate(), timeout=30)
-    except TimeoutError:
-        proc.kill()  # type: ignore[possibly-undefined]
-        _audit(ctx, "search_codebase", args, "timeout", t0)
-        return "Search timed out after 30 seconds. Try a more specific pattern."
-
-    output = raw.decode(errors="replace")
-    if not output.strip():
-        _audit(ctx, "search_codebase", args, "no matches", t0)
-        return "No matches found."
-
-    lines = output.splitlines()
-    if len(lines) > 50:
-        total = len(lines)
-        lines = lines[:50]
-        lines.append(f"... ({total - 50} more results truncated)")
-    _audit(ctx, "search_codebase", args, f"{len(lines)} matches", t0)
-    return "\n".join(lines)
-
-
 def _check_read_before_write(ctx: RunContext[AgentDeps], resolved: Path, rel: str) -> None:
     """Ensure the file was read (and hasn't changed since) before writing."""
     if not resolved.exists():
@@ -257,15 +185,18 @@ async def write_file_scoped(ctx: RunContext[AgentDeps], path: str, content: str)
     return f"Wrote {len(content)} chars to {rel}"
 
 
-async def run_shell(ctx: RunContext[AgentDeps], command: str) -> str:
+async def bash(ctx: RunContext[AgentDeps], command: str) -> str:
     """Run a shell command in the working directory.
+
+    Use this for searching (grep, rg), listing files (ls, find), running
+    tests, linting, or any other shell operation.
 
     Args:
         ctx: Agent run context.
         command: Shell command to execute.
     """
     t0 = time.monotonic()
-    log.debug("run_shell: %s", command)
+    log.debug("bash: %s", command)
     try:
         proc = await asyncio.create_subprocess_shell(
             command,
@@ -282,5 +213,5 @@ async def run_shell(ctx: RunContext[AgentDeps], command: str) -> str:
     exit_code = proc.returncode or 0
     if len(output) > 50_000:
         output = output[:50_000] + "\n... (truncated)"
-    _audit(ctx, "run_shell", {"command": command}, f"exit_code={exit_code}", t0)
+    _audit(ctx, "bash", {"command": command}, f"exit_code={exit_code}", t0)
     return f"Exit code: {exit_code}\n{output}"

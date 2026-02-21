@@ -10,11 +10,9 @@ from pydantic_ai import Agent
 
 from lackey.agents._deps import AgentDeps, ToolLog, get_model
 from lackey.agents._tools import (
+    bash,
     edit_file_scoped,
-    list_dir,
     read_file,
-    run_shell,
-    search_codebase,
     write_file_scoped,
 )
 from lackey.models import ScopeDisagreement, ScopeResult
@@ -31,11 +29,11 @@ reject it.
 
 Use the provided tools to:
 1. Read relevant files to understand the existing code.
-2. Edit existing files using edit_file_scoped (find-and-replace). This is
+2. Use bash to search (grep, rg), list files (ls, find), or run commands.
+3. Edit existing files using edit_file_scoped (find-and-replace). This is
    preferred over write_file_scoped for modifications since it only changes
    the targeted section.
-3. Create new files using write_file_scoped.
-4. Run shell commands if needed (e.g., to verify syntax).
+4. Create new files using write_file_scoped.
 
 When you're done implementing successfully, return a brief summary string
 describing what you changed.
@@ -53,7 +51,7 @@ _executor_agent = Agent(
     output_type=ScopeDisagreement | str,  # type: ignore[arg-type]
     instructions=EXECUTOR_INSTRUCTIONS,
     deps_type=AgentDeps,
-    tools=[read_file, list_dir, search_codebase, edit_file_scoped, write_file_scoped, run_shell],
+    tools=[read_file, bash, edit_file_scoped, write_file_scoped],
     retries=5,
     defer_model_check=True,
 )

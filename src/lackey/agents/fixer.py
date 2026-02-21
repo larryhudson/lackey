@@ -10,11 +10,9 @@ from pydantic_ai import Agent
 
 from lackey.agents._deps import AgentDeps, ToolLog, get_model
 from lackey.agents._tools import (
+    bash,
     edit_file_scoped,
-    list_dir,
     read_file,
-    run_shell,
-    search_codebase,
     write_file_scoped,
 )
 from lackey.models import ScopeResult
@@ -32,7 +30,7 @@ Use the provided tools to:
 1. Read the failing files to understand the current code.
 2. Edit files using edit_file_scoped (find-and-replace) to make targeted fixes.
    Prefer this over write_file_scoped for existing files.
-3. Run shell commands to verify your fixes (e.g., ruff check, pytest).
+3. Use bash to verify your fixes (e.g., ruff check, pytest).
 
 Keep changes minimal and focused on fixing the reported errors. Do not
 refactor or improve unrelated code.
@@ -43,7 +41,7 @@ _fixer_agent = Agent(
     output_type=str,
     instructions=FIXER_INSTRUCTIONS,
     deps_type=AgentDeps,
-    tools=[read_file, list_dir, search_codebase, edit_file_scoped, write_file_scoped, run_shell],
+    tools=[read_file, bash, edit_file_scoped, write_file_scoped],
     retries=5,
     defer_model_check=True,
 )
