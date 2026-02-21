@@ -40,12 +40,12 @@ async def _stub_scoper(task: str, work_dir: Path) -> ScopeResult:
     )
 
 
-async def _stub_executor(task: str, scope: ScopeResult, work_dir: Path) -> None:
+async def _stub_executor(task: str, scope: ScopeResult | None, work_dir: Path) -> None:
     """Stub executor that does nothing."""
     return None
 
 
-async def _stub_fixer(failure_output: str, work_dir: Path, scope: ScopeResult) -> None:
+async def _stub_fixer(failure_output: str, work_dir: Path, scope: ScopeResult | None) -> None:
     """Stub fixer that does nothing."""
 
 

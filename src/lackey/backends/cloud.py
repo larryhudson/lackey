@@ -28,6 +28,7 @@ class CloudBackend:
         run_id: str,
         image: str,
         timeout: int,
+        extra_env: dict[str, str] | None = None,
     ) -> RunResult:
         cfg = self.config
         repo = cfg.repo
@@ -70,6 +71,7 @@ class CloudBackend:
             "ARTIFACT_BUCKET": cfg.artifact_bucket,
             "ANTHROPIC_API_KEY": anthropic_key,
             "LACKEY_DEBUG": "1",
+            **(extra_env or {}),
         }
 
         task_arn = launch_task(

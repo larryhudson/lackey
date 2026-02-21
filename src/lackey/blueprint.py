@@ -45,12 +45,14 @@ class Scoper(Protocol):
 
 class Executor(Protocol):
     async def __call__(
-        self, task: str, scope: ScopeResult, work_dir: Path
+        self, task: str, scope: ScopeResult | None, work_dir: Path
     ) -> ScopeDisagreement | None: ...
 
 
 class Fixer(Protocol):
-    async def __call__(self, failure_output: str, work_dir: Path, scope: ScopeResult) -> None: ...
+    async def __call__(
+        self, failure_output: str, work_dir: Path, scope: ScopeResult | None
+    ) -> None: ...
 
 
 # ---------------------------------------------------------------------------
@@ -365,7 +367,6 @@ async def _handle_agent(spec: StepSpec, state: RunState, step_idx: int) -> StepR
         return StepResult(step=step_idx, name=spec.name, success=True, detail=scope.summary)
 
     if spec.agent == "executor":
-        assert state.scope is not None
         disagreement = await state.agents.executor(state.cfg.task, state.scope, state.cfg.work_dir)
         if disagreement is not None:
             state.outcome = Outcome.SCOPE_DISAGREEMENT
@@ -387,7 +388,6 @@ async def _handle_agent(spec: StepSpec, state: RunState, step_idx: int) -> StepR
         return StepResult(step=step_idx, name=spec.name, success=True)
 
     if spec.agent == "fixer":
-        assert state.scope is not None
         failure_output = ""
         if spec.input_from:
             prev = state.step_results.get(spec.input_from)

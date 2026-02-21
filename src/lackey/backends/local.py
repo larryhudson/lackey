@@ -30,6 +30,7 @@ class LocalBackend:
         run_id: str,
         image: str,
         timeout: int,
+        extra_env: dict[str, str] | None = None,
     ) -> RunResult:
         repo_path = Path(self.repo).resolve()
         if not repo_path.is_dir():
@@ -70,6 +71,9 @@ class LocalBackend:
             "-e",
             "LACKEY_DEBUG=1",
         ]
+
+        for key, val in (extra_env or {}).items():
+            cmd += ["-e", f"{key}={val}"]
 
         env_file = Path(".env")
         if env_file.exists():

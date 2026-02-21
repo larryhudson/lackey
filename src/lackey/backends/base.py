@@ -30,6 +30,7 @@ class RuntimeBackend(Protocol):
         run_id: str,
         image: str,
         timeout: int,
+        extra_env: dict[str, str] | None = None,
     ) -> RunResult:
         """Launch a lackey run and block until completion.
 
@@ -38,6 +39,7 @@ class RuntimeBackend(Protocol):
             run_id: Unique run identifier.
             image: Docker image tag to use.
             timeout: Run timeout in seconds.
+            extra_env: Additional env vars to pass to the container.
 
         Returns:
             RunResult with outcome and artifact locations.

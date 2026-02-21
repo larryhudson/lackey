@@ -53,7 +53,9 @@ class FixAgent:
     def __init__(self, tool_log: ToolLog | None = None) -> None:
         self._tool_log = tool_log
 
-    async def __call__(self, failure_output: str, work_dir: Path, scope: ScopeResult) -> None:
+    async def __call__(
+        self, failure_output: str, work_dir: Path, scope: ScopeResult | None
+    ) -> None:
         log.info("fixer starting (%d chars of failure output)", len(failure_output))
         t0 = time.monotonic()
         deps = AgentDeps(
@@ -62,8 +64,14 @@ class FixAgent:
             agent_name="fixer",
             tool_log=self._tool_log,
         )
-        scope_info = scope.model_dump_json(indent=2)
-        prompt = f"Fix the following failures:\n\n{failure_output}\n\nScope:\n{scope_info}"
+        if scope is not None:
+            scope_info = scope.model_dump_json(indent=2)
+            prompt = f"Fix the following failures:\n\n{failure_output}\n\nScope:\n{scope_info}"
+        else:
+            prompt = (
+                f"Fix the following failures:\n\n{failure_output}\n\n"
+                f"No scope restrictions — all files are writable."
+            )
         await _fixer_agent.run(prompt, deps=deps)
         elapsed = time.monotonic() - t0
         log.info("fixer done in %.1fs", elapsed)

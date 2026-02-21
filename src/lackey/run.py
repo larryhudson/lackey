@@ -41,6 +41,10 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use cloud backend (ECS/Fargate) instead of local Docker",
     )
+    run_p.add_argument(
+        "--blueprint",
+        help="Blueprint name or path (e.g. 'execute-and-test')",
+    )
 
     return parser
 
@@ -77,11 +81,16 @@ def main(argv: list[str] | None = None) -> None:
 
         backend = LocalBackend(repo=repo)
 
+    extra_env: dict[str, str] = {}
+    if args.blueprint:
+        extra_env["LACKEY_BLUEPRINT"] = args.blueprint
+
     result = backend.launch(
         task=args.task,
         run_id=run_id,
         image=image,
         timeout=args.timeout,
+        extra_env=extra_env or None,
     )
 
     print()

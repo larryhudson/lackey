@@ -64,7 +64,7 @@ class ExecuteAgent:
         self._tool_log = tool_log
 
     async def __call__(
-        self, task: str, scope: ScopeResult, work_dir: Path
+        self, task: str, scope: ScopeResult | None, work_dir: Path
     ) -> ScopeDisagreement | None:
         log.info("executor starting: %s", task)
         t0 = time.monotonic()
@@ -74,8 +74,11 @@ class ExecuteAgent:
             agent_name="executor",
             tool_log=self._tool_log,
         )
-        scope_info = scope.model_dump_json(indent=2)
-        prompt = f"Task: {task}\n\nScope:\n{scope_info}"
+        if scope is not None:
+            scope_info = scope.model_dump_json(indent=2)
+            prompt = f"Task: {task}\n\nScope:\n{scope_info}"
+        else:
+            prompt = f"Task: {task}\n\nNo scope restrictions — all files are writable."
         result = await _executor_agent.run(prompt, deps=deps)
         elapsed = time.monotonic() - t0
         if isinstance(result.output, ScopeDisagreement):

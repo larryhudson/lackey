@@ -91,11 +91,12 @@ def _check_read_before_write(ctx: RunContext[AgentDeps], resolved: Path, rel: st
 
 def _check_scope(ctx: RunContext[AgentDeps], resolved: Path) -> str:
     """Check that a resolved path is within scope. Returns the relative path."""
+    rel = str(resolved.relative_to(ctx.deps.work_dir.resolve()))
     scope = ctx.deps.scope
     if scope is None:
-        raise ModelRetry("No scope available — cannot write files.")
+        # No scope set — all files are allowed
+        return rel
 
-    rel = str(resolved.relative_to(ctx.deps.work_dir.resolve()))
     allowed = set(scope.allowed_files + scope.test_files)
     allowed_dirs = [d.rstrip("/") + "/" for d in scope.allowed_dirs]
 

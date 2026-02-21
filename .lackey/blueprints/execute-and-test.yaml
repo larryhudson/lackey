@@ -1,0 +1,73 @@
+name: execute-and-test
+description: Implement, lint, test, commit, and push — no scope step, all files writable
+
+steps:
+  - name: create_branch
+    type: git_branch
+    branch: "lackey/{run_id}/{task_slug}"
+
+  - name: implement
+    type: agent
+    agent: executor
+
+  - name: lint
+    type: command
+    commands:
+      - "ruff check --fix ."
+      - "ruff format ."
+    check:
+      command: "ruff check --output-format=json ."
+      artifact: lint_report.json
+
+  - name: fix_lint
+    type: agent
+    agent: fixer
+    input_from: lint
+    when: "lint.failed"
+
+  - name: re_lint
+    type: command
+    when: "lint.failed"
+    commands:
+      - "ruff check --fix ."
+      - "ruff format ."
+    check:
+      command: "ruff check --output-format=json ."
+      artifact: lint_report.json
+
+  - name: test
+    type: command
+    commands:
+      - "pytest -x --tb=short"
+    timeout: 300
+    success_codes: [0, 5]
+    artifact: test_output.txt
+
+  - name: fix_tests
+    type: agent
+    agent: fixer
+    input_from: test
+    when: "test.failed"
+
+  - name: re_test
+    type: command
+    when: "test.failed"
+    commands:
+      - "pytest -x --tb=short"
+    timeout: 300
+    success_codes: [0, 5]
+    artifact: test_output.txt
+    on_failure: "outcome:test_failure"
+
+  - name: commit
+    type: git_commit
+    message: "lackey: {task}"
+
+  - name: push
+    type: git_push
+    when: "env.GITHUB_TOKEN"
+
+  - name: create_pr
+    type: git_pr
+    when: "env.GITHUB_TOKEN"
+    title: "lackey: {task}"
