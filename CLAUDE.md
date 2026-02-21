@@ -4,7 +4,7 @@ Unattended coding agent inspired by Stripe's Minions. See [README.md](README.md)
 
 ## Key concepts
 
-- **Blueprint** (`minion.py`): fixed 9-step sequence mixing deterministic steps (git, lint, test, commit) with agentic steps (scope, implement, fix). Agents can't skip steps or loop.
+- **Blueprint** (`blueprint.py`): YAML-defined step sequence (`.lackey/blueprints/`) mixing deterministic steps (git, lint, test, commit) with agentic steps (scope, implement, fix). Agents can't skip steps or loop.
 - **Scope-then-execute**: scoper agent (read-only) emits `scope.json`, executor is mechanically bound by it. Scope disagreement is an explicit outcome, not a silent failure.
 - **Two backends**: local Docker (`backends/local.py`) and cloud ECS/Fargate (`backends/cloud.py`). The blueprint is identical in both.
 
@@ -13,15 +13,17 @@ Unattended coding agent inspired by Stripe's Minions. See [README.md](README.md)
 | What | Where |
 |---|---|
 | Host-side CLI | `run.py` — `lackey run "task" [--cloud]` |
-| Container entrypoint | `__main__.py` — reads env vars, runs blueprint |
-| Blueprint orchestrator | `minion.py` — the 9-step sequence |
+| Container entrypoint | `__main__.py` — reads env vars, discovers blueprint, runs it |
+| Blueprint runner | `blueprint.py` — YAML-driven step walker, step handlers, models |
+| Compatibility shim | `minion.py` — re-exports from `blueprint.py` (transitional) |
 | Data models | `models.py` — `ScopeResult`, `RunConfig`, `RunSummary`, `Outcome` |
 | Agent definitions | `agents/scoper.py`, `agents/executor.py`, `agents/fixer.py` |
 | Agent tools | `agents/_tools.py` — `read_file`, `bash`, `edit_file_scoped`, `write_file_scoped` |
 | Agent deps & logging | `agents/_deps.py` — `AgentDeps`, `ToolLog`, `get_model()` |
 | Backend protocol | `backends/base.py` — `RuntimeBackend` protocol, `RunResult` |
 | Cloud infra | `cloud/` — `ecr.py`, `ecs.py`, `s3.py`, `upload.py`, `github_token.py`, `pr.py`, `config.py` |
-| Docker image | `Dockerfile` (base), `example/Dockerfile.minion` (project) |
+| Docker image | `Dockerfile` (base), `.lackey/Dockerfile` (project) |
+| Blueprint YAML | `.lackey/blueprints/scope-execute-test.yaml` |
 | Build helpers | `Makefile` — `build-base`, `build-app`, `push`, `build-and-push` |
 
 ## Agents
@@ -52,7 +54,7 @@ ruff check --fix . && ruff format .
 
 # Build and test Docker images
 make build-base       # builds minion-base:latest
-make build-app        # builds example image on top of base
+make build-app        # builds project image from .lackey/Dockerfile
 make build-and-push   # build + push to ECR
 
 # Run locally via CLI (set LACKEY_REPO and LACKEY_IMAGE in .env)

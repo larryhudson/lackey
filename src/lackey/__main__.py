@@ -8,6 +8,7 @@ Environment variables:
     RUN_ID          — unique run identifier (required)
     WORK_DIR        — working directory with the cloned repo (default: /work)
     OUTPUT_DIR      — directory for artifacts (default: /output)
+    LACKEY_BLUEPRINT — explicit path to blueprint YAML (optional)
 """
 
 # ruff: noqa: T201 — print is the correct output mechanism for a CLI entrypoint
@@ -20,6 +21,7 @@ import os
 import sys
 from pathlib import Path
 
+from lackey.blueprint import AgentRegistry, discover_blueprint, load_blueprint, run_blueprint
 from lackey.models import RunConfig, ScopeResult
 
 # ---------------------------------------------------------------------------
@@ -83,6 +85,18 @@ def main() -> None:
         output_dir=output_dir,
     )
 
+    # Discover and load blueprint
+    bp_path = discover_blueprint(work_dir)
+    if not bp_path:
+        print(
+            "ERROR: No blueprint found. Add a YAML file to .lackey/blueprints/"
+            " or set LACKEY_BLUEPRINT.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    print(f"Loading blueprint from {bp_path}")
+    blueprint = load_blueprint(bp_path)
+
     if os.environ.get("LACKEY_STUBS"):
         scoper, executor, fixer = _stub_scoper, _stub_executor, _stub_fixer
     else:
@@ -93,16 +107,9 @@ def main() -> None:
         executor = ExecuteAgent(tool_log=tool_log)
         fixer = FixAgent(tool_log=tool_log)
 
-    from lackey.minion import run_blueprint
+    agents = AgentRegistry(scoper=scoper, executor=executor, fixer=fixer)
 
-    summary = asyncio.run(
-        run_blueprint(
-            cfg,
-            scoper=scoper,
-            executor=executor,
-            fixer=fixer,
-        )
-    )
+    summary = asyncio.run(run_blueprint(cfg, blueprint, agents))
 
     print(f"Run {summary.run_id} finished: {summary.outcome.value}")
     sys.exit(0 if summary.outcome == "success" else 1)

@@ -61,19 +61,11 @@ echo "Starting blueprint: task='${TASK}' run_id='${RUN_ID}' timeout=${TIMEOUT}s"
 exit_code=0
 timeout "${TIMEOUT}" python -m lackey || exit_code=$?
 
-# ── Cloud mode: upload artifacts ──────────────────────────────────────────
+# ── S3 upload is always the final step for cloud runs ─────────────────────
 
-if [ ! -d /repo ]; then
-    echo "Cloud mode: pushing branch to origin"
-    git push origin HEAD
-
-    echo "Cloud mode: creating pull request"
-    python -m lackey.cloud.pr
-
-    if [ -n "${ARTIFACT_BUCKET:-}" ]; then
-        echo "Cloud mode: uploading artifacts to s3://${ARTIFACT_BUCKET}/${RUN_ID}/"
-        python -m lackey.cloud.upload
-    fi
+if [ -n "${ARTIFACT_BUCKET:-}" ]; then
+    echo "Uploading artifacts to s3://${ARTIFACT_BUCKET}/${RUN_ID}/"
+    python -m lackey.cloud.upload
 fi
 
 # ── Done ──────────────────────────────────────────────────────────────────

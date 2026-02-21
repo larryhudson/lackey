@@ -1,10 +1,10 @@
-# Example project image — extends minion-base with project-specific tooling
+# Project-specific image — extends minion-base with project tooling
 #
-# This shows how a target repo would define its Dockerfile.minion to add
+# This shows how a target repo would define its .lackey/Dockerfile to add
 # linters, test runners, and project dependencies. See DESIGN.md §8.1.
 #
 # Usage:
-#   docker build -t minion-example -f example/Dockerfile.minion .
+#   docker build -t minion-example -f .lackey/Dockerfile .
 
 FROM minion-base:latest
 

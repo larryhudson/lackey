@@ -2,12 +2,12 @@
 #
 # Usage:
 #   make build-base                  Build minion-base for amd64
-#   make build-app                   Build app image from example/Dockerfile.minion
+#   make build-app                   Build app image from .lackey/Dockerfile
 #   make push                        Force-push app image to ECR
 #   make build-and-push              Build both images and push to ECR
 #
 # Override defaults:
-#   make build-app APP_DOCKERFILE=path/to/Dockerfile.minion APP_IMAGE=my-minion:latest
+#   make build-app APP_DOCKERFILE=.lackey/Dockerfile APP_IMAGE=my-minion:latest
 #   make push ECR_REPO=my-ecr-repo
 
 # Load .env if present (- prefix ignores missing file)
@@ -17,7 +17,7 @@ export
 PLATFORM       ?= linux/amd64
 BASE_IMAGE     ?= minion-base:latest
 APP_IMAGE      ?= minion-example:latest
-APP_DOCKERFILE ?= example/Dockerfile.minion
+APP_DOCKERFILE ?= .lackey/Dockerfile
 
 # ECR settings (override or set via env)
 ECR_REGISTRY   ?= $(LACKEY_ECR_REGISTRY)

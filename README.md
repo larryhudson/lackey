@@ -4,7 +4,7 @@ An unattended coding agent inspired by [Stripe's Minions](https://stripe.dev/blo
 
 ## How it works
 
-Lackey runs a fixed **blueprint** that interleaves deterministic steps (branch, lint, test, commit) with bounded agentic steps:
+Lackey runs a **YAML-defined blueprint** (`.lackey/blueprints/`) that interleaves deterministic steps (branch, lint, test, commit) with bounded agentic steps:
 
 1. **Scope** — A read-only agent explores the codebase and identifies the minimal set of files needed.
 2. **Execute** — An implementation agent makes changes, constrained to the scoped files.
@@ -27,7 +27,7 @@ pip install -e . && pip install --dependency-groups dev
 
 # Build the Docker images
 make build-base                    # builds minion-base:latest
-make build-app                     # builds example image on top (adds ruff + pytest)
+make build-app                     # builds project image from .lackey/Dockerfile
 
 # Configure your .env file (see Configuration below)
 # LACKEY_REPO=/path/to/your/repo   (local path for local mode, org/repo for cloud)
@@ -79,10 +79,16 @@ Populate the `LACKEY_*` env vars (see [Configuration](#cloud-backend-environment
 ## Project structure
 
 ```
+.lackey/
+  Dockerfile             # Project-specific image (extends minion-base)
+  blueprints/
+    scope-execute-test.yaml  # YAML blueprint defining the step sequence
+
 src/lackey/
   __main__.py          # Container entrypoint (reads env vars, runs blueprint)
   run.py               # Host-side CLI (`lackey run ...`)
-  minion.py            # Blueprint orchestrator (9-step sequence)
+  blueprint.py         # YAML-driven blueprint runner (step handlers, main loop)
+  minion.py            # Compatibility shim (re-exports from blueprint.py)
   models.py            # Pydantic models (ScopeResult, RunConfig, etc.)
   agents/
     _deps.py           # Shared dependencies & audit logging
@@ -137,6 +143,7 @@ These are drawn from Stripe's Minions architecture. See [DESIGN.md](DESIGN.md) f
 | `WORK_DIR` | No | `/work` | Working directory |
 | `OUTPUT_DIR` | No | `/output` | Artifact output directory |
 | `TIMEOUT` | No | `600` | Run timeout in seconds |
+| `LACKEY_BLUEPRINT` | No | — | Blueprint name or path (only needed if multiple exist in `.lackey/blueprints/`) |
 | `LACKEY_DEBUG` | No | — | Enable debug logging |
 
 ### Host-side environment (`.env` file)
