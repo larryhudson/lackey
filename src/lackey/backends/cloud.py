@@ -69,6 +69,7 @@ class CloudBackend:
             "REPO": repo,
             "ARTIFACT_BUCKET": cfg.artifact_bucket,
             "ANTHROPIC_API_KEY": anthropic_key,
+            "LACKEY_DEBUG": "1",
         }
 
         task_arn = launch_task(
