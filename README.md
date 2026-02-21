@@ -12,40 +12,96 @@ Lackey runs a fixed **blueprint** that interleaves deterministic steps (branch, 
 
 Each agent gets four tools: `read_file`, `bash`, `edit_file_scoped`, and `write_file_scoped`. Write tools enforce scope boundaries — the executor can't touch files the scoper didn't approve.
 
-## Quick start
+## Prerequisites
+
+- Python 3.11+
+- Docker
+- An Anthropic API key (`ANTHROPIC_API_KEY`)
+- For cloud mode: AWS credentials with access to your ECS/ECR/S3/Secrets Manager resources, plus a GitHub App configured for the target repos
+
+## Getting started
 
 ```bash
-# Build the base image
-docker build -t minion-base:latest .
+# Install lackey + dev tools (ruff, pytest)
+pip install -e . && pip install --dependency-groups dev
 
-# Build a project image (adds ruff + pytest)
-docker build -t minion-example:latest -f example/Dockerfile.minion .
+# Build the Docker images
+make build-base                    # builds minion-base:latest
+make build-app                     # builds example image on top (adds ruff + pytest)
+
+# Configure your .env file (see Configuration below)
+# LACKEY_REPO=/path/to/your/repo   (local path for local mode, org/repo for cloud)
+# LACKEY_IMAGE=minion-example:latest
 
 # Run against a local repo
-docker run --rm \
-  -v /path/to/your/repo:/repo:ro \
-  -v /tmp/lackey-output:/output \
-  -e ANTHROPIC_API_KEY=sk-... \
-  -e TASK="Add a hello() function to src/app.py" \
-  -e RUN_ID="run-$(date +%s)" \
-  minion-example:latest
+lackey run "Add a hello() function to src/app.py"
+
+# Run in the cloud (requires LACKEY_* env vars — see Configuration below)
+lackey run "Add a hello() function to src/app.py" --cloud
 ```
 
-Artifacts land in `/output`: `run_summary.json`, `scope.json`, `diff.patch`, `tool_calls.log`, and more.
+Artifacts land in `/tmp/lackey/{run_id}/`: `run_summary.json`, `scope.json`, `diff.patch`, `tool_calls.log`, and more.
+
+## Runtime backends
+
+Lackey has two runtime backends. The blueprint, agents, and tools are identical in both — only the container lifecycle differs.
+
+### Local (default)
+
+Runs in a hardened Docker container on your machine:
+- Repo bind-mounted read-only at `/repo`
+- `--read-only` filesystem, `--cap-drop=ALL`, `--network none`, non-root user
+- Artifacts written to a host-mounted `/output` directory
+- Branch pushed to a local bare remote
+
+### Cloud (`--cloud`)
+
+Submits an ECS Fargate task on AWS:
+- Image pushed to ECR (cached)
+- Short-lived GitHub App token minted for the target repo
+- Repo cloned from GitHub inside the container
+- Artifacts uploaded to S3, then downloaded by the CLI after completion
+- CloudWatch logs streamed to your terminal during the run
+- GitHub PR auto-created on successful runs
+
+Cloud infrastructure is provisioned externally (no Terraform/CDK in this repo). You need:
+- An **ECR repository** for the container image
+- An **ECS Fargate cluster** with a task definition named in `LACKEY_ECS_TASK_DEF`
+- An **S3 bucket** for run artifacts
+- A **GitHub App** installed on target repos (private key stored in Secrets Manager) with permissions:
+  - **Contents**: read & write (clone repo, push branches)
+  - **Pull requests**: read & write (create PRs)
+  - **Metadata**: read (get default branch)
+- **Anthropic API key** stored in Secrets Manager
+
+Populate the `LACKEY_*` env vars (see [Configuration](#cloud-backend-environment-host-side-for---cloud-mode) below) in a `.env` file — the CLI loads it automatically via `python-dotenv`.
 
 ## Project structure
 
 ```
 src/lackey/
-  __main__.py       # CLI entrypoint (reads env vars, runs blueprint)
-  minion.py         # Blueprint orchestrator (9-step sequence)
-  models.py         # Pydantic models (ScopeResult, RunConfig, etc.)
+  __main__.py          # Container entrypoint (reads env vars, runs blueprint)
+  run.py               # Host-side CLI (`lackey run ...`)
+  minion.py            # Blueprint orchestrator (9-step sequence)
+  models.py            # Pydantic models (ScopeResult, RunConfig, etc.)
   agents/
-    _deps.py        # Shared dependencies & audit logging
-    _tools.py       # Tool functions (read_file, bash, edit, write)
-    scoper.py       # Scoper agent (read-only exploration)
-    executor.py     # Executor agent (implementation within scope)
-    fixer.py        # Fixer agent (lint/test repair)
+    _deps.py           # Shared dependencies & audit logging
+    _tools.py          # Tool functions (read_file, bash, edit, write)
+    scoper.py          # Scoper agent (read-only exploration)
+    executor.py        # Executor agent (implementation within scope)
+    fixer.py           # Fixer agent (lint/test repair)
+  backends/
+    base.py            # RuntimeBackend protocol & RunResult
+    local.py           # LocalBackend (Docker on host)
+    cloud.py           # CloudBackend (ECS/Fargate)
+  cloud/
+    config.py          # CloudConfig (loaded from env vars)
+    ecr.py             # Push images to ECR
+    ecs.py             # Launch & poll ECS tasks, stream logs
+    s3.py              # Download artifacts from S3
+    upload.py          # Upload artifacts to S3
+    github_token.py    # Mint GitHub App installation tokens
+    pr.py              # Create pull requests
 ```
 
 ## Design principles
@@ -70,7 +126,7 @@ These are drawn from Stripe's Minions architecture. See [DESIGN.md](DESIGN.md) f
 
 ## Configuration
 
-Environment variables:
+### Container environment (inside the Docker container)
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
@@ -81,6 +137,43 @@ Environment variables:
 | `WORK_DIR` | No | `/work` | Working directory |
 | `OUTPUT_DIR` | No | `/output` | Artifact output directory |
 | `TIMEOUT` | No | `600` | Run timeout in seconds |
+| `LACKEY_DEBUG` | No | — | Enable debug logging |
+
+### Host-side environment (`.env` file)
+
+These are read from environment variables or a `.env` file. The CLI loads `.env` automatically. In local mode, the `.env` file is also passed into the Docker container.
+
+| Variable | Required | Description |
+|---|---|---|
+| `LACKEY_REPO` | Yes | Local path (local mode) or GitHub org/repo slug (cloud mode) |
+| `LACKEY_IMAGE` | Yes | Docker image tag to use |
+| `ANTHROPIC_API_KEY` | Local only | API key for Claude (passed to container via `.env`) |
+
+### Cloud-only environment (additional `LACKEY_*` vars for `--cloud` mode)
+
+| Variable | Description |
+|---|---|
+| `LACKEY_ECR_REGISTRY` | ECR registry URI (e.g. `123456789.dkr.ecr.us-east-1.amazonaws.com`) |
+| `LACKEY_ECS_CLUSTER` | ECS cluster name |
+| `LACKEY_ECS_TASK_DEF` | ECS task definition family |
+| `LACKEY_ECS_SUBNETS` | Comma-separated subnet IDs |
+| `LACKEY_ECS_SG` | Security group ID for ECS tasks |
+| `LACKEY_ARTIFACT_BUCKET` | S3 bucket for run artifacts |
+| `LACKEY_GITHUB_APP_ID` | GitHub App ID |
+| `LACKEY_GITHUB_APP_PRIVATE_KEY_SECRET` | Secrets Manager secret name for the GitHub App private key |
+| `LACKEY_GITHUB_INSTALLATION_ID` | GitHub App installation ID |
+| `LACKEY_ANTHROPIC_SECRET` | Secrets Manager secret name for the Anthropic API key |
+| `AWS_REGION` | AWS region (default: `us-east-1`) |
+
+## CLI reference
+
+```
+lackey run "task description" [options]
+
+Options:
+  --cloud         Use cloud backend (ECS/Fargate) instead of local Docker
+  --timeout       Run timeout in seconds (default: 600)
+```
 
 ## License
 

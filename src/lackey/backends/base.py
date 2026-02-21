@@ -27,7 +27,6 @@ class RuntimeBackend(Protocol):
         self,
         *,
         task: str,
-        repo: str,
         run_id: str,
         image: str,
         timeout: int,
@@ -36,7 +35,6 @@ class RuntimeBackend(Protocol):
 
         Args:
             task: Task description for the agent.
-            repo: Path to local repo or GitHub org/repo slug.
             run_id: Unique run identifier.
             image: Docker image tag to use.
             timeout: Run timeout in seconds.

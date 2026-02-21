@@ -17,22 +17,21 @@ class LocalBackend:
 
     def __init__(
         self,
+        repo: str,
         output_base: Path | None = None,
-        env_file: str | Path | None = None,
     ) -> None:
+        self.repo = repo
         self.output_base = output_base or Path("/tmp/lackey")
-        self.env_file = Path(env_file).resolve() if env_file else None
 
     def launch(
         self,
         *,
         task: str,
-        repo: str,
         run_id: str,
         image: str,
         timeout: int,
     ) -> RunResult:
-        repo_path = Path(repo).resolve()
+        repo_path = Path(self.repo).resolve()
         if not repo_path.is_dir():
             print(f"ERROR: repo path {repo_path} does not exist", file=sys.stderr)
             raise SystemExit(1)
@@ -72,8 +71,9 @@ class LocalBackend:
             "LACKEY_DEBUG=1",
         ]
 
-        if self.env_file:
-            cmd += ["--env-file", str(self.env_file)]
+        env_file = Path(".env")
+        if env_file.exists():
+            cmd += ["--env-file", str(env_file.resolve())]
 
         cmd.append(image)
 

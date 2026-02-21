@@ -25,12 +25,12 @@ class CloudBackend:
         self,
         *,
         task: str,
-        repo: str,
         run_id: str,
         image: str,
         timeout: int,
     ) -> RunResult:
         cfg = self.config
+        repo = cfg.repo
 
         # 1. Push image to ECR
         ensure_image_in_ecr(

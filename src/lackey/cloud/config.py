@@ -23,6 +23,7 @@ class CloudConfig(BaseModel):
     )
     github_installation_id: str = Field(description="GitHub App installation ID")
     anthropic_secret: str = Field(description="Secrets Manager secret name for Anthropic API key")
+    repo: str = Field(description="GitHub org/repo slug, e.g. 'owner/repo'")
 
     @classmethod
     def from_env(cls) -> CloudConfig:
@@ -42,4 +43,5 @@ class CloudConfig(BaseModel):
             github_app_private_key_secret=os.environ["LACKEY_GITHUB_APP_PRIVATE_KEY_SECRET"],
             github_installation_id=os.environ["LACKEY_GITHUB_INSTALLATION_ID"],
             anthropic_secret=os.environ["LACKEY_ANTHROPIC_SECRET"],
+            repo=os.environ["LACKEY_REPO"],
         )
