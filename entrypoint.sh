@@ -67,13 +67,13 @@ if [ ! -d /repo ]; then
     echo "Cloud mode: pushing branch to origin"
     git push origin HEAD
 
+    echo "Cloud mode: creating pull request"
+    python -m lackey.cloud.pr
+
     if [ -n "${ARTIFACT_BUCKET:-}" ]; then
         echo "Cloud mode: uploading artifacts to s3://${ARTIFACT_BUCKET}/${RUN_ID}/"
         python -m lackey.cloud.upload
     fi
-
-    echo "Cloud mode: creating pull request"
-    python -m lackey.cloud.pr
 fi
 
 # ── Done ──────────────────────────────────────────────────────────────────
