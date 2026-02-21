@@ -11,6 +11,7 @@ RUN apt-get update && \
         git \
         curl \
         jq \
+        ripgrep \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user (uid 1000)

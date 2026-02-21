@@ -197,7 +197,8 @@ async def _step_6_test(
 
     _write_artifact(cfg.output_dir, "test_output.txt", out)
 
-    success = rc == 0
+    # rc 0 = all passed, rc 5 = no tests collected (both are fine)
+    success = rc in (0, 5)
     return StepResult(step=step, name="test", success=success, detail=out[-2000:])
 
 

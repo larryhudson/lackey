@@ -9,9 +9,10 @@ description = "An unattended coding agent inspired by Stripe's Minions"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0",
+    "pydantic-ai-slim[anthropic]>=0.2",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=8.0",
     "ruff>=0.4",

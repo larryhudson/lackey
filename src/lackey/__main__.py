@@ -15,6 +15,7 @@ Environment variables:
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import sys
 from pathlib import Path
@@ -52,6 +53,16 @@ async def _stub_fixer(failure_output: str, work_dir: Path, scope: ScopeResult) -
 
 
 def main() -> None:
+    debug = bool(os.environ.get("LACKEY_DEBUG"))
+    logging.basicConfig(
+        level=logging.WARNING,
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        datefmt="%H:%M:%S",
+        stream=sys.stderr,
+    )
+    # Only show detailed logs for our own code
+    logging.getLogger("lackey").setLevel(logging.DEBUG if debug else logging.INFO)
+
     task = os.environ.get("TASK")
     run_id = os.environ.get("RUN_ID")
 
@@ -72,14 +83,24 @@ def main() -> None:
         output_dir=output_dir,
     )
 
+    if os.environ.get("LACKEY_STUBS"):
+        scoper, executor, fixer = _stub_scoper, _stub_executor, _stub_fixer
+    else:
+        from lackey.agents import ExecuteAgent, FixAgent, ScopeAgent, ToolLog
+
+        tool_log = ToolLog(output_dir / "tool_calls.log")
+        scoper = ScopeAgent(tool_log=tool_log)
+        executor = ExecuteAgent(tool_log=tool_log)
+        fixer = FixAgent(tool_log=tool_log)
+
     from lackey.minion import run_blueprint
 
     summary = asyncio.run(
         run_blueprint(
             cfg,
-            scoper=_stub_scoper,
-            executor=_stub_executor,
-            fixer=_stub_fixer,
+            scoper=scoper,
+            executor=executor,
+            fixer=fixer,
         )
     )
 
