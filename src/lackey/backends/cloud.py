@@ -119,6 +119,7 @@ class CloudBackend:
                 run_id=run_id,
                 outcome=data.get("outcome", "error"),
                 branch=data.get("branch", ""),
+                pr_url=data.get("pr_url", ""),
                 artifact_dir=artifact_dir,
                 artifact_s3_prefix=s3_prefix,
                 runtime="cloud",

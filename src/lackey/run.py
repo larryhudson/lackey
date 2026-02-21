@@ -62,6 +62,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
     parser = _build_parser()
     args = parser.parse_args(argv)
 
@@ -93,6 +97,8 @@ def main(argv: list[str] | None = None) -> None:
     print(f"  runtime: {result.runtime}")
     if result.branch:
         print(f"  branch:  {result.branch}")
+    if result.pr_url:
+        print(f"  pr:      {result.pr_url}")
     if result.artifact_dir:
         print(f"  artifacts: {result.artifact_dir}")
     if result.artifact_s3_prefix:

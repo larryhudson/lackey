@@ -14,6 +14,7 @@ class RunResult(BaseModel):
     run_id: str
     outcome: str  # matches Outcome enum values: success, test_failure, error, etc.
     branch: str = ""
+    pr_url: str = ""
     artifact_dir: Path | None = None  # local path to downloaded artifacts
     artifact_s3_prefix: str = ""  # s3 prefix if cloud run
     runtime: str = "local"  # "local" or "cloud"
