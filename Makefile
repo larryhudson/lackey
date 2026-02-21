@@ -36,8 +36,6 @@ push:
 	@if [ -z "$(ECR_REGISTRY)" ]; then \
 		echo "ERROR: Set LACKEY_ECR_REGISTRY or ECR_REGISTRY"; exit 1; \
 	fi
-	uv run python -c "\
-		from lackey.cloud.ecr import ensure_image_in_ecr; \
-		ensure_image_in_ecr('$(APP_IMAGE)', '$(ECR_REGISTRY)', '$(ECR_REPO)', '$(AWS_REGION)', force=True)"
+	uv run python -c "from lackey.cloud.ecr import ensure_image_in_ecr; ensure_image_in_ecr('$(APP_IMAGE)', '$(ECR_REGISTRY)', '$(ECR_REPO)', '$(AWS_REGION)', force=True)"
 
 build-and-push: build-app push
