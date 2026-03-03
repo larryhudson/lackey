@@ -130,6 +130,10 @@ These are drawn from Stripe's Minions architecture. See [DESIGN.md](DESIGN.md) f
 
 **Constrain where predictable, free where creative.** Linting, testing, committing, and isolation are predictable — the blueprint handles them. Understanding code and deciding what to change are not — the agents handle those.
 
+## Writing a custom blueprint
+
+Blueprints are YAML files that define the sequence of steps Lackey executes. Create a file at `.lackey/blueprints/<name>.yaml` in your repo (or use the default `scope-execute-test.yaml` if it already exists). A blueprint has a `name`, `description`, and `steps` array. Each step is one of six types: `git_branch` (create a new branch with template variables like `{run_id}` and `{task_slug}`), `git_checkout` (switch to an existing branch), `agent` (invoke scoper, executor, or fixer), `command` (run shell commands with optional checks and artifacts), `git_commit` (stage and commit with template expansion), `git_push` (push the branch), or `git_pr` (create a pull request). Steps can be conditional using the `when` field to check step outcomes (`stepname.failed`, `stepname.succeeded`) or environment variables (`env.VAR`). Commands can specify a `check` to validate success via a separate command (e.g., linting), run with custom timeout and success codes, and produce artifact files. The `on_failure` field allows setting the run outcome (e.g., `outcome:test_failure`) if a step fails. Template expansion in branch names, commit messages, and PR titles supports `{run_id}`, `{task}`, `{task_slug}`, and `{env.VARIABLE}`. For detailed specifications of all step fields and conditions, see [DESIGN.md §3](DESIGN.md#3-the-blueprint).
+
 ## Configuration
 
 ### Container environment (inside the Docker container)
